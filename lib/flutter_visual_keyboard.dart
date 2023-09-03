@@ -1,9 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_visual_keyboard/config.dart';
 import 'injector.dart';
 
+
+/// Used to group [FVKKey]s with index.
+typedef Entries<T> = Iterable<MapEntry<int, T>>;
+typedef FVKKeyRow = List<FVKKey>;
+typedef FVKKeyRows = List<FVKKeyRow>;
 
 class FlutterVisualKeyboard extends StatefulWidget {
   const FlutterVisualKeyboard({super.key});
@@ -12,36 +18,38 @@ class FlutterVisualKeyboard extends StatefulWidget {
   State<FlutterVisualKeyboard> createState() => _FlutterVisualKeyboardState();
 }
 
-typedef RowEntries = Iterable<MapEntry<int, List<String>>>;
-
 class _FlutterVisualKeyboardState extends State<FlutterVisualKeyboard> {
 
-  final KeyService _keyService = DI.get<KeyService>();
-  final FVKController _keyboardController = DI.get<FVKController>();
+  late final FVKKeysBloc _fvkKeysBloc;
+  late final FVKController _keyboardController;
 
+
+  @Deprecated('will be removed')
   late List<List<String>> keyStrings;
 
-  late RowEntries _rowEntries;
+  late Entries<FVKKeys> _rowEntries;
+
+  late StreamSubscription _keysListener;
 
   @override
   void initState() {
     super.initState();
-     keyStrings = _keyService.getKeySubStrings();
+    _fvkKeysBloc = DI.get<FVKKeysBloc>();
+
+    _keyboardController = DI.get<FVKController>();
+
      // if shift is pressed, then the keyStrings should be the superSymbols
      // else the keyStrings should be the subSymbols
-    
-    _keyboardController.events$.listen((HighlightFVKEvent event) {
-      if (event.highlightKeys != null) {
-        setState(() {
-          event.highlightKeys!.forEach((key, color) {
-            key.isHighlighted = true;
-            key.highlightColor = color;
-          });
-        });
-      }
+
+    _rowEntries = _fvkKeysBloc.state.asKeyboardRows().asMap().entries;
+
+    _keysListener = _fvkKeysBloc.stream
+        .asyncMap((keys) => keys.asKeyboardRows())
+        .listen((FVKKeyRows keyRows) {
+
+          _rowEntries = keyRows.asMap().entries;
+      setState(() {});
     });
-    
-     _rowEntries = keyStrings.asMap().entries;
   }
 
   @override
@@ -64,7 +72,9 @@ class _FlutterVisualKeyboardState extends State<FlutterVisualKeyboard> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     for (var keyEntry in rowEntry.value.asMap().entries)
-                      _buildKeyboardKey(keyEntry.value),
+                      _KeyboardKeyWidget(
+                        fvkKey: keyEntry.value,
+                      ),
                   ],
                 )
               else
@@ -72,7 +82,9 @@ class _FlutterVisualKeyboardState extends State<FlutterVisualKeyboard> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     for (var keyEntry in rowEntry.value.asMap().entries)
-                      _buildKeyboardKey(keyEntry.value),
+                      _KeyboardKeyWidget(
+                        fvkKey: keyEntry.value,
+                      ),
                   ],
                 ),
           ],
@@ -81,13 +93,11 @@ class _FlutterVisualKeyboardState extends State<FlutterVisualKeyboard> {
     );
   }
 
-  _KeyboardKeyWidget _buildKeyboardKey(String key) => _KeyboardKeyWidget(
-        fvkKey: FVKKey(subText: key, uniqueName: key),
-      );
-
   @override
   void dispose() {
     _keyboardController.dispose();
+    _keysListener.cancel();
+
     super.dispose();
   }
 }
@@ -102,7 +112,29 @@ class HighlightFVKEvent implements FVKEvent {
   HighlightFVKEvent({HighightedKeys? this.highlightKeys});
 }
 
-typedef FVKKeys = Iterable<FVKKey>;
+typedef FVKKeys = List<FVKKey>;
+typedef FVKKeys$ = Stream<FVKKeys>;
+
+extension EVKKeys on FVKKeys {
+  @Deprecated('FIXME: implement keyboard rows map instead of converting list')
+  List<List<FVKKey>> asKeyboardRows() {
+      // TODO: make map
+      // 13
+      // 14
+      // 14
+      // 13
+      // 12
+      // 7
+    return [
+      sublist(0, 13),
+      sublist(13, 27),
+      sublist(27, 41),
+      sublist(41, 54),
+      sublist(54, 66),
+      sublist(66, 73)
+    ];
+  }
+}
 
 class KeyHighlighter {
   // FIXME: get color from theme
@@ -131,11 +163,20 @@ class KeyHighlighter {
   }
 }
 
+/// Holds the state of [FVKKeys]
+class FVKKeysBloc extends Cubit<FVKKeys>{
+
+  FVKKeysBloc() : super([]) {
+    FVKLayout layout = FVKLayout.layouts['english']!;
+    FVKKeys keys = layout.asFVKKeys(layout);
+    emit(keys);
+  }
+}
+
 abstract class FVKController {
   final _fvkEventStreamController = StreamController<HighlightFVKEvent>();
-  
+
   Stream<HighlightFVKEvent> get events$ => _fvkEventStreamController.stream;
-  Stream get _FVKKeys$ => events$.map((event) => event.highlightKeys!.keys);
 
   KeyHighlighter get keyHiglighter => KeyHighlighter(this);
 
@@ -153,9 +194,10 @@ final defaultFVKController = DefaultFVKController();
 
 
 typedef Strings = List<String>;
+typedef LayoutListFormat = List<List<List<String>>>;
 
 class FVKLayout {
-  final List<Strings> _layout;
+  final LayoutListFormat _layout;
 
   FVKLayout(this._layout);
 
@@ -166,8 +208,8 @@ class FVKLayout {
     ));
   }
 
-  get superSymbols => _layout[0];
-  get subSymbols => _layout[1];
+  get superSymbols => [..._layout[0]];
+  get subSymbols => [..._layout[1]];
 
   static final Map<String, FVKLayout> layouts = {
     'english': FVKLayout.fromSymbolRows([
@@ -180,7 +222,7 @@ class FVKLayout {
   /// [superSymbols] represent the symbols on the top of the key.
   /// This method wraps the [subSymbols] and [superSymbols] in a keyboard layout
   /// with special keys like `esc`, `Tab`, `Caps Lock`, etc.
-  static wrapWithSpecialKeys({
+  static LayoutListFormat wrapWithSpecialKeys({
     required Strings subSymbols,
     required Strings superSymbols,
   }) {
@@ -214,18 +256,32 @@ class FVKLayout {
       ],
     ];
   }
-}
 
-class KeyService {
-  List<List<String>> getKeySubStrings() {
-    return [
-      ['esc', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12'],
-      [...'`1234567890-='.split(""), "Backspace"],
-      ["Tab", ..."qwertyuiop[]\\".split("")],
-      ["Caps Lock", ..."asdfghjkl;'".split(""), "Enter"],
-      ["Shift", ..."zxcvbnm,./".split(""), "Shift"],
-      ["control", "option", "command", "Space", "command", "option", "control"]
-    ];
+  /// FIXME: Implement keyboard rows map instead of converting list.
+  /// The same as with [FVKKeys.asKeyboardRows] for better performance.
+  FVKKeys asFVKKeys(FVKLayout layout) {
+    FVKKeys keys = [];
+
+    var superSymbols = layout.superSymbols;
+    var subSymbols = layout.subSymbols;
+
+    for (var row = 0; row < superSymbols.length; row++) {
+      var superSymbolRow = superSymbols[row];
+      var subSymbolRow = subSymbols[row];
+      for (var col = 0; col < superSymbolRow.length; col++) {
+        var superSymbol = superSymbolRow[col];
+        var subSymbol = subSymbolRow[col];
+
+        var key = FVKKey(
+          subText: subSymbol,
+          supText: superSymbol,
+          uniqueName: superSymbol,
+        );
+
+        keys = [...keys, key];
+      }
+    }
+    return keys;
   }
 }
 
@@ -293,8 +349,8 @@ class _KeyboardKeyWidgetState extends State<_KeyboardKeyWidget> {
             color: Colors.white,
             border: Border.all(color: Colors.black, width: 1),
             borderRadius: BorderRadius.circular(5)),
-        padding: EdgeInsets.all(3),
-        margin: EdgeInsets.all(1),
+        padding: const EdgeInsets.all(3),
+        margin: const EdgeInsets.all(1),
         child: displayTextWidget
     );
   }

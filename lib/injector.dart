@@ -20,8 +20,9 @@ class DI {
       _getIt.registerFactory<T>(factoryFunc);
 
   static void configure({Function? overrideRegistrations}) {
-    _getIt.registerSingleton<KeyService>(KeyService());
-    _getIt.registerSingleton<FVKController>(defaultFVKController);
+    // _getIt.registerSingleton<KeyService>(KeyService(), signalsReady: true);
+    _getIt.registerSingleton<FVKKeysBloc>(FVKKeysBloc(), signalsReady: true);
+    _getIt.registerSingleton<FVKController>(defaultFVKController, signalsReady: true);
   }
 
   /// Use [DI.register] inside [callback] to override registrations
