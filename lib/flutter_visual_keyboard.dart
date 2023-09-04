@@ -12,7 +12,10 @@ typedef FVKKeyRow = List<FVKKey>;
 typedef FVKKeyRows = List<FVKKeyRow>;
 
 class FlutterVisualKeyboard extends StatefulWidget {
-  const FlutterVisualKeyboard({super.key});
+  final FVKController controller;
+
+  const FlutterVisualKeyboard({Key? key, required this.controller})
+      : super(key: key);
 
   @override
   State<FlutterVisualKeyboard> createState() => _FlutterVisualKeyboardState();
@@ -36,7 +39,7 @@ class _FlutterVisualKeyboardState extends State<FlutterVisualKeyboard> {
     super.initState();
     _fvkKeysBloc = DI.get<FVKKeysBloc>();
 
-    _keyboardController = DI.get<FVKController>();
+    _keyboardController = widget.controller;
 
      // if shift is pressed, then the keyStrings should be the superSymbols
      // else the keyStrings should be the subSymbols
@@ -44,11 +47,13 @@ class _FlutterVisualKeyboardState extends State<FlutterVisualKeyboard> {
     _rowEntries = _fvkKeysBloc.state.asKeyboardRows().asMap().entries;
 
     _keysListener = _fvkKeysBloc.stream
-        .asyncMap((keys) => keys.asKeyboardRows())
+        .asyncMap((FVKKeys keys) => keys.asKeyboardRows())
         .listen((FVKKeyRows keyRows) {
 
+
+      setState(() {
           _rowEntries = keyRows.asMap().entries;
-      setState(() {});
+      });
     });
   }
 
@@ -116,6 +121,10 @@ typedef FVKKeys = List<FVKKey>;
 typedef FVKKeys$ = Stream<FVKKeys>;
 
 extension EVKKeys on FVKKeys {
+  findKeyByLabel(String keyLabel) {
+    return firstWhere((key) => key.subText == keyLabel);
+  }
+
   @Deprecated('FIXME: implement keyboard rows map instead of converting list')
   List<List<FVKKey>> asKeyboardRows() {
       // TODO: make map
@@ -155,11 +164,13 @@ class KeyHighlighter {
   byKeyLabel(String keyLabel, {Color? color}) {
     color ??= _defaultColor;
 
-    _keyboardController._fvkEventStreamController.add(HighlightFVKEvent(
-      highlightKeys: {
-        FVKKey(subText: keyLabel, uniqueName: ''): color,
-      },
-    ));
+
+    // _keyboardController._fvkEventStreamController
+    //     .add(HighlightFVKEvent(highlightKeys: {
+    //   FVKKey(subText: keyLabel, uniqueName: ''): color,
+    // }));
+
+
   }
 }
 
@@ -171,20 +182,40 @@ class FVKKeysBloc extends Cubit<FVKKeys>{
     FVKKeys keys = layout.asFVKKeys(layout);
     emit(keys);
   }
+
+  highlightKey(String keyLabel, {Color? color}) {
+    var map = state.map((FVKKey key) {
+      if (key.subText == keyLabel) {
+        key.isHighlighted = true;
+        key.highlightColor = color ?? Config.defaultHighlightColor;
+      }
+      return key;
+    }).toList();
+    emit(map);
+  }
 }
 
 abstract class FVKController {
   final _fvkEventStreamController = StreamController<HighlightFVKEvent>();
+  final _fvkKeysBloc = DI.get<FVKKeysBloc>();
+
+  // get _keys => _fvkKeysBloc.state;
 
   Stream<HighlightFVKEvent> get events$ => _fvkEventStreamController.stream;
 
-  KeyHighlighter get keyHiglighter => KeyHighlighter(this);
 
   dispose() {
     _fvkEventStreamController.close();
   }
 }
 
+extension HighlightE on FVKController {
+  highlightByLabel(String keyLabel, {Color? color}) {
+    color ??= Config.defaultHighlightColor;
+
+    _fvkKeysBloc.highlightKey(keyLabel, color: color);
+  }
+}
 
 class DefaultFVKController extends FVKController {
   DefaultFVKController();
@@ -346,13 +377,14 @@ class _KeyboardKeyWidgetState extends State<_KeyboardKeyWidget> {
         width: squareSize * widthMultiplier,
         height: squareSize,
         decoration: BoxDecoration(
-            color: Colors.white,
+            color: widget.fvkKey.isHighlighted
+                ? widget.fvkKey.highlightColor
+                : Colors.white,
             border: Border.all(color: Colors.black, width: 1),
             borderRadius: BorderRadius.circular(5)),
         padding: const EdgeInsets.all(3),
         margin: const EdgeInsets.all(1),
-        child: displayTextWidget
-    );
+        child: displayTextWidget);
   }
 }
 

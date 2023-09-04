@@ -19,11 +19,4 @@ void main() {
     expect(initialPlatform, isInstanceOf<MethodChannelFlutterVisualKeyboard>());
   });
 
-  test('getPlatformVersion', () async {
-    FlutterVisualKeyboard flutterVisualKeyboardPlugin = FlutterVisualKeyboard();
-    MockFlutterVisualKeyboardPlatform fakePlatform = MockFlutterVisualKeyboardPlatform();
-    FlutterVisualKeyboardPlatform.instance = fakePlatform;
-
-    // expect(await flutterVisualKeyboardPlugin.getPlatformVersion(), '42');
-  });
 }

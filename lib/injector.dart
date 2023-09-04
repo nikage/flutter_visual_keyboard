@@ -1,6 +1,8 @@
 import 'package:flutter_visual_keyboard/flutter_visual_keyboard.dart';
 import 'package:get_it/get_it.dart';
 
+/// The simplest dependency injection solution I could come up with.
+/// It's not perfect, but it's good enough for this project.
 class DI {
   static final GetIt _getIt = GetIt.asNewInstance();
   static bool? _isConfigured;
@@ -20,9 +22,9 @@ class DI {
       _getIt.registerFactory<T>(factoryFunc);
 
   static void configure({Function? overrideRegistrations}) {
-    // _getIt.registerSingleton<KeyService>(KeyService(), signalsReady: true);
-    _getIt.registerSingleton<FVKKeysBloc>(FVKKeysBloc(), signalsReady: true);
-    _getIt.registerSingleton<FVKController>(defaultFVKController, signalsReady: true);
+    _getIt.registerLazySingleton<FVKKeysBloc>(()=> (FVKKeysBloc()));
+    _getIt.registerLazySingleton<DefaultFVKController>(()=> defaultFVKController);
+    _getIt.allReadySync();
   }
 
   /// Use [DI.register] inside [callback] to override registrations

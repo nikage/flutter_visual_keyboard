@@ -16,7 +16,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-
   @override
   void initState() {
     super.initState();
@@ -52,8 +51,17 @@ class _MyAppState extends State<MyApp> {
         appBar: AppBar(
           title: const Text('Plugin example app'),
         ),
-        body: Center(
-          child: FlutterVisualKeyboard(),
+        body: Focus(
+            autofocus: true,
+            onKey: (node, event) {
+              print('onKey: ${event.logicalKey}');
+              defaultFVKController
+                  .highlightByLabel(event.logicalKey.keyLabel);
+              return KeyEventResult.handled;
+            },
+            child: Center(
+                child: FlutterVisualKeyboard(controller: defaultFVKController)
+            )
         ),
       ),
     );
