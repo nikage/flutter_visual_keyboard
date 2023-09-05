@@ -193,6 +193,17 @@ class FVKKeysBloc extends Cubit<FVKKeys>{
     }).toList();
     emit(map);
   }
+
+  void highlightReset(String keyLabel ) {
+    var map = state.map((FVKKey key) {
+      if (key.subText == keyLabel) {
+        key.isHighlighted = false;
+        key.highlightColor = Config.defaultHighlightColor;
+      }
+      return key;
+    }).toList();
+    emit(map);
+  }
 }
 
 abstract class FVKController {
@@ -215,10 +226,16 @@ extension HighlightE on FVKController {
 
     _fvkKeysBloc.highlightKey(keyLabel, color: color);
   }
+
+  void highlightReset(String keyLabel) {
+    _fvkKeysBloc.highlightReset(keyLabel);
+  }
 }
 
 class DefaultFVKController extends FVKController {
   DefaultFVKController();
+
+
 }
 
 final defaultFVKController = DefaultFVKController();

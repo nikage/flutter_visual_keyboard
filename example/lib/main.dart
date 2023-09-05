@@ -54,9 +54,16 @@ class _MyAppState extends State<MyApp> {
         body: Focus(
             autofocus: true,
             onKey: (node, event) {
-              print('onKey: ${event.logicalKey}');
-              defaultFVKController
-                  .highlightByLabel(event.logicalKey.keyLabel);
+              if(event is RawKeyDownEvent) {
+                defaultFVKController
+                    .highlightByLabel(event.logicalKey.keyLabel);
+              }
+              if(event is RawKeyUpEvent) {
+                defaultFVKController
+                    .highlightReset(event.logicalKey.keyLabel);
+              }
+              // NOTE: this is just for testing purposes
+              // all key events should be handled properly
               return KeyEventResult.handled;
             },
             child: Center(
